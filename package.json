@@ -1,0 +1,24 @@
+{
+  "name": "easy-check-api",
+  "version": "0.0.1",
+  "description": "Backend for easy-check",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jc-tanedo/easy-check-api.git"
+  },
+  "author": "JC Tañedo",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jc-tanedo/easy-check-api/issues"
+  },
+  "homepage": "https://github.com/jc-tanedo/easy-check-api#readme",
+  "dependencies": {
+    "express": "^4.17.1",
+    "js-rijndael": "^1.0.0",
+    "lodash": "^4.17.15"
+  }
+}
