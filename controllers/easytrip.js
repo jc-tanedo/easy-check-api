@@ -15,6 +15,5 @@ function checkBalance(req, res) {
 
     easytripService.requestBalance(id, imei)
         .then(userInfo => res.send(userInfo))
-        .catch(err => console.log(err) && Promise.reject())
         .catch(() => res.status(400).send({ error: 'Something went wrong, make sure your parameters are correct and/or try again later' }));
 }
