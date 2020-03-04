@@ -1,6 +1,8 @@
 'use strict';
 
 const axios = require('axios');
+const nodeImeiClass = require('node-imei');
+const nodeImei = new nodeImeiClass();
 
 const config = require('../../config');
 const crypto = require('../../utils/crypto');
@@ -9,13 +11,15 @@ module.exports = {
     requestBalance,
 };
 
-function requestBalance(accountId, deviceId) {
-    const encDeviceId = crypto.encrypt(Buffer.from('02:00:00:00:00:00' + deviceId).toString('utf8') + config.idPadding, config.idPassPhrase);
+function requestBalance(accountId, imei = null) {
+    imei = imei || nodeImei.random().toString();
+    const encImei = crypto.encrypt(Buffer.from('02:00:00:00:00:00' + imei).toString('utf8') + config.idPadding, config.idPassPhrase);
+
     const encAccountId = crypto.encrypt(JSON.stringify({ AccountObuID: accountId }) + config.contentPadding, config.contentPassPhrase);
 
     const data = JSON.stringify({ Content: encAccountId });
     const headers = {
-        ID: encDeviceId,
+        ID: encImei,
         AppVersion: '2.0',
         'Content-Length': data.length,
         'Content-Type': 'application/json',
@@ -25,9 +29,10 @@ function requestBalance(accountId, deviceId) {
         .then(response => {
             const data = JSON.parse(JSON.stringify(response.data));
             if (data.Return.Result) {
-                return JSON.parse(crypto.decrypt(data.Return.Result, config.contentPassPhrase));
+                const plain = JSON.parse(crypto.decrypt(data.Return.Result, config.contentPassPhrase));
+                return plain;
             }
 
-            throw new Error('No data');
+            return Promise.reject(new Error('No data'));
         });
 }
