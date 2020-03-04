@@ -1,5 +1,6 @@
 'use strict';
 
+const _ = require('lodash');
 const axios = require('axios');
 const nodeImeiClass = require('node-imei');
 const nodeImei = new nodeImeiClass();
@@ -29,7 +30,12 @@ function requestBalance(accountId, imei = null) {
         .then(response => {
             const data = JSON.parse(JSON.stringify(response.data));
             if (data.Return.Result) {
-                const plain = JSON.parse(crypto.decrypt(data.Return.Result, config.contentPassPhrase));
+                let plain = JSON.parse(crypto.decrypt(data.Return.Result, config.contentPassPhrase));
+
+                plain = _.mapKeys(plain, (v, k) => _.camelCase(k));
+                plain.customerInfo = _.map(plain.customerInfo, info => _.mapKeys(info, (v, k) => _.camelCase(k)));
+                plain.reloadInfo = _.map(plain.reloadInfo, info => _.mapKeys(info, (v, k) => _.camelCase(k)));
+
                 return plain;
             }
 
