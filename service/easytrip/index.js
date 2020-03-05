@@ -30,7 +30,13 @@ function requestBalance(accountId, imei = null) {
         .then(response => {
             const data = JSON.parse(JSON.stringify(response.data));
             if (data.Return.Result) {
-                let plain = JSON.parse(crypto.decrypt(data.Return.Result, config.contentPassPhrase));
+                let plain;
+                try {
+                    plain = JSON.parse(crypto.decrypt(data.Return.Result, config.contentPassPhrase));
+                }
+                catch (e) {
+                    return Promise.reject(new Error('There were problems fetching your data'));
+                }
 
                 plain = _.mapKeys(plain, (v, k) => _.camelCase(k));
                 plain.customerInfo = _.map(plain.customerInfo, info => _.mapKeys(info, (v, k) => _.camelCase(k)));
