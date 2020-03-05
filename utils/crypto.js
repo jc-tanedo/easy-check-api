@@ -37,7 +37,7 @@ function decrypt(encrypted, passPhrase) {
 
     const plain = rj.decrypt(hexToBytes(encryptedContent), hexToBytes(iv), hexToBytes(key), 'rijndael-256', 'cbc');
 
-    return Buffer.from(plain).toString('utf8').replace(/\u001f/g, '');
+    return Buffer.from(plain).toString('utf8').trim().replace(/[^\x20-\x7E]+/g, '');
 }
 
 function hexToBytes(hex) {
