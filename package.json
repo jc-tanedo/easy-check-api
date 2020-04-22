@@ -18,6 +18,7 @@
   "homepage": "https://github.com/jc-tanedo/easy-check-api#readme",
   "dependencies": {
     "axios": "^0.19.2",
+    "cors": "^2.8.5",
     "express": "^4.17.1",
     "js-rijndael": "^1.0.0",
     "lodash": "^4.17.15",
