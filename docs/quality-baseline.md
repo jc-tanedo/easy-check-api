@@ -2,6 +2,15 @@
 
 ## Status and scope
 
+**Plan status: completed.** All 18 steps and the subsequent review findings and
+folder/naming cleanup are complete. Implementation was committed as `28fb45b`
+(`Refactor EasyCheck into a strictly typed Next.js application`).
+
+Final cleanup verification passed strict type-check, lint, formatting, all 60
+unit tests, all 16 E2E tests, production build, and diff checks. Live DriveHub
+verification and coverage measurement remain outside the completed scope; the
+limitations below are retained rather than implied to be verified.
+
 Plan step 1 established the review baseline. Steps 2–18 have since been
 implemented incrementally as described below. The post-plan review follow-up
 also closes the test-typing, frontend hook, and migration-configuration gaps.
