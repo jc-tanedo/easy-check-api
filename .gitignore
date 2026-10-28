@@ -73,6 +73,9 @@ typings/
 .env.*
 !.env.example
 .drivehub-client.json
+
+# Local deployment configuration (copy from docker-compose.example.yml)
+/docker-compose.yml
 .next/
 next-env.d.ts
 out/

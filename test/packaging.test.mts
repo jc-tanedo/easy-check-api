@@ -15,8 +15,15 @@ test('Git and Docker exclude runtime secrets while retaining the example environ
     assert.match(gitignore, /^\.env\.\*$/m);
     assert.match(gitignore, /^!\.env\.example$/m);
     assert.match(gitignore, /^\.drivehub-client\.json$/m);
+    assert.match(gitignore, /^\/docker-compose\.yml$/m);
     assert.match(dockerignore, /^\.env\.\*$/m);
     assert.match(dockerignore, /^\.drivehub-client\.json$/m);
+});
+
+test('Compose example uses environment credentials without a credential-file mount', () => {
+    const compose = fs.readFileSync(path.join(__dirname, '../docker-compose.example.yml'), 'utf8');
+    assert.match(compose, /env_file:\s*\n\s*- \.env/);
+    assert.doesNotMatch(compose, /DRIVEHUB_CLIENT_CONFIG|drivehub-client|secrets:/);
 });
 
 test('standalone packaging copies assets and removes secrets without modifying source config', (t) => {
