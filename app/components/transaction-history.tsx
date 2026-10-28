@@ -125,15 +125,22 @@ function TransactionTimeline({ transactions }: { transactions: TransactionRecord
                         data-transaction-kind={kind}
                         key={`${transaction.referenceNo || 'transaction'}-${index}`}
                     >
-                        <time
-                            className="transaction-date"
-                            dateTime={validDate ? `${localFields}+08:00` : value || undefined}
-                        >
-                            <strong>
-                                {validDate ? calendarDate.format(date) : value.replace('T', ' ') || 'Unavailable'}
-                            </strong>
-                            {validDate && <span>{clockTime.format(date)}</span>}
-                        </time>
+                        <div className="transaction-date">
+                            <time dateTime={validDate ? `${localFields}+08:00` : value || undefined}>
+                                <strong>
+                                    {validDate ? calendarDate.format(date) : value.replace('T', ' ') || 'Unavailable'}
+                                </strong>
+                                {validDate && <span>{clockTime.format(date)}</span>}
+                            </time>
+                            {transaction.plate?.trim() && (
+                                <span
+                                    className="history-license-plate"
+                                    aria-label={`License plate ${transaction.plate.trim()}`}
+                                >
+                                    {transaction.plate.trim()}
+                                </span>
+                            )}
+                        </div>
                         <span className="timeline-marker" aria-hidden="true">
                             <span />
                         </span>
@@ -149,11 +156,7 @@ function TransactionTimeline({ transactions }: { transactions: TransactionRecord
                             </p>
                             <dl className="transaction-metadata">
                                 <div>
-                                    <dt>Plate</dt>
-                                    <dd>{transaction.plate || '—'}</dd>
-                                </div>
-                                <div>
-                                    <dt>Reference</dt>
+                                    <dt>REF#</dt>
                                     <dd className="transaction-reference">{transaction.referenceNo || '—'}</dd>
                                 </div>
                             </dl>

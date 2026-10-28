@@ -116,6 +116,15 @@ test('view, refresh, and close transaction history; handle empty history', async
     await account.getByRole('button', { name: 'View transactions' }).click();
     const dialog = page.getByRole('dialog', { name: 'Transaction history' });
     await expect(dialog).toBeVisible();
+    const firstTransaction = dialog.locator('.transaction-item').first();
+    const plate = firstTransaction.getByLabel('License plate ABC1234', { exact: true });
+    await expect(plate).toBeVisible();
+    const plateBounds = await plate.boundingBox();
+    const amountBounds = await firstTransaction.locator('.timeline-marker').boundingBox();
+    await expect(firstTransaction.locator('.transaction-date')).toContainText('ABC1234');
+    expect(plateBounds).not.toBeNull();
+    expect(amountBounds).not.toBeNull();
+    expect(plateBounds!.x + plateBounds!.width).toBeLessThan(amountBounds!.x);
     await expect(dialog.getByText('TRX-0001', { exact: true })).toBeVisible();
     await expect(dialog.getByText('₱120.00', { exact: true })).toBeVisible();
     await expect(dialog.getByText('Reload', { exact: true })).toBeVisible();
