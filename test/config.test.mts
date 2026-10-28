@@ -22,23 +22,32 @@ test('Redis requires a valid URL and a separate stable 32-byte encryption key', 
     assert.doesNotThrow(() => validateConfig(config));
 });
 
-test('client credential files accept only an object with optional string fields', (t) => {
+test('DriveHub application credentials come only from environment variables', (t) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'easycheck-config-'));
     t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
     const configPath = path.join(dir, 'client.json');
     const env: NodeJS.ProcessEnv = { NODE_ENV: 'test', DRIVEHUB_CLIENT_CONFIG: configPath };
 
     fs.writeFileSync(configPath, JSON.stringify({ username: 'client-user', password: 'client-pass', client_id: 'id' }));
-    assert.equal(loadConfig(env).appUsername, 'client-user');
-    assert.equal(loadConfig(env).appPassword, 'client-pass');
-    assert.equal(loadConfig(env).clientId, 'id');
+    const missing = loadConfig(env);
+    assert.equal(missing.appUsername, '');
+    assert.equal(missing.appPassword, '');
+    assert.equal(missing.clientId, '');
+    assert.throws(() => validateConfig({ ...config, appUsername: missing.appUsername }), /appUsername/);
+    assert.throws(() => validateConfig({ ...config, appPassword: missing.appPassword }), /appPassword/);
+    assert.throws(() => validateConfig({ ...config, clientId: missing.clientId }), /clientId/);
 
-    fs.writeFileSync(configPath, JSON.stringify({ username: 42, password: 'secret' }));
-    assert.throws(() => loadConfig(env), /optional string fields/);
-
-    fs.writeFileSync(configPath, '[]');
-    assert.throws(() => loadConfig(env), /optional string fields/);
-
-    fs.writeFileSync(configPath, ' '.repeat(16 * 1024 + 1));
-    assert.throws(() => loadConfig(env), /no larger than 16 KiB/);
+    // Even a malformed legacy file must not be read.
+    fs.writeFileSync(configPath, 'not JSON');
+    const loaded = loadConfig({
+        ...env,
+        API_KEY: 'a'.repeat(32),
+        DRIVEHUB_APP_USERNAME: 'env-user',
+        DRIVEHUB_APP_PASSWORD: 'env-pass',
+        DRIVEHUB_CLIENT_ID: 'env-client',
+    });
+    assert.equal(loaded.appUsername, 'env-user');
+    assert.equal(loaded.appPassword, 'env-pass');
+    assert.equal(loaded.clientId, 'env-client');
+    assert.doesNotThrow(() => validateConfig(loaded));
 });

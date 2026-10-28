@@ -11,7 +11,6 @@ services:
             NODE_ENV: production
             PORT: '7777'
             HOSTNAME: 0.0.0.0
-            DRIVEHUB_CLIENT_CONFIG: /run/secrets/drivehub-client.json
             REDIS_URL: redis://redis:6379/0
             SESSION_ENCRYPTION_KEY: ${SESSION_ENCRYPTION_KEY:?Set SESSION_ENCRYPTION_KEY to 64 random hex characters in .env}
         depends_on:
@@ -23,9 +22,6 @@ services:
         ports:
             # Local-only by default; set DOCKER_BIND_HOST=0.0.0.0 to expose directly.
             - '${DOCKER_BIND_HOST:-127.0.0.1}:${PORT:-7777}:7777'
-        secrets:
-            - source: drivehub-client
-              target: drivehub-client.json
         security_opt:
             - no-new-privileges:true
         cap_drop:
@@ -55,10 +51,6 @@ services:
             retries: 5
         security_opt:
             - no-new-privileges:true
-
-secrets:
-    drivehub-client:
-        file: ${DRIVEHUB_CLIENT_CONFIG:-./.drivehub-client.json}
 
 volumes:
     redis-data:
