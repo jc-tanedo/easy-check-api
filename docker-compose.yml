@@ -1,0 +1,68 @@
+services:
+    easycheck:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        restart: unless-stopped
+        init: true
+        env_file:
+            - .env
+        environment:
+            NODE_ENV: production
+            PORT: '7777'
+            HOSTNAME: 0.0.0.0
+            DRIVEHUB_CLIENT_CONFIG: /run/secrets/drivehub-client.json
+            REDIS_URL: redis://redis:6379/0
+            SESSION_ENCRYPTION_KEY: ${SESSION_ENCRYPTION_KEY:?Set SESSION_ENCRYPTION_KEY to 64 random hex characters in .env}
+        depends_on:
+            redis:
+                condition: service_healthy
+        networks:
+            - default
+            - backend
+        ports:
+            # Local-only by default; set DOCKER_BIND_HOST=0.0.0.0 to expose directly.
+            - '${DOCKER_BIND_HOST:-127.0.0.1}:${PORT:-7777}:7777'
+        secrets:
+            - source: drivehub-client
+              target: drivehub-client.json
+        security_opt:
+            - no-new-privileges:true
+        cap_drop:
+            - ALL
+
+    redis:
+        image: redis:7.4-alpine
+        restart: unless-stopped
+        command:
+            - redis-server
+            - --appendonly
+            - 'yes'
+            - --appendfsync
+            - everysec
+            - --maxmemory
+            - 256mb
+            - --maxmemory-policy
+            - noeviction
+        volumes:
+            - redis-data:/data
+        networks:
+            - backend
+        healthcheck:
+            test: ['CMD', 'redis-cli', 'ping']
+            interval: 10s
+            timeout: 3s
+            retries: 5
+        security_opt:
+            - no-new-privileges:true
+
+secrets:
+    drivehub-client:
+        file: ${DRIVEHUB_CLIENT_CONFIG:-./.drivehub-client.json}
+
+volumes:
+    redis-data:
+
+networks:
+    backend:
+        internal: true
