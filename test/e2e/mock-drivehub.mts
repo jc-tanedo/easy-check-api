@@ -2,6 +2,7 @@
 if (process.env.EASYCHECK_E2E !== '1') throw new Error('The synthetic DriveHub adapter is only for E2E tests');
 
 import { loadConfig } from '../../lib/server/config';
+import { createRedisStores } from '../../lib/server/redis';
 import { createService } from '../../lib/server/drivehub/service';
 import { createHandlers, type HandlerSet } from '../../lib/server/handlers';
 import { DriveHubError, type UpstreamRequest } from '../../lib/server/drivehub/transport';
@@ -66,4 +67,8 @@ async function request({ path, fields = {}, query = {} }: UpstreamRequest) {
 
 const config = loadConfig();
 const runtime = globalThis as unknown as Record<symbol, HandlerSet | undefined>;
-runtime[Symbol.for('easycheck.runtime')] = createHandlers(config, createService(config, { request }));
+const service = createService(config, { request });
+const stores = config.redisUrl
+    ? createRedisStores(config.redisUrl, config.sessionEncryptionKey || '', service)
+    : undefined;
+runtime[Symbol.for('easycheck.runtime')] = createHandlers(config, service, stores);

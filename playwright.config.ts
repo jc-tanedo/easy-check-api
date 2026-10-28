@@ -21,6 +21,7 @@ export default defineConfig({
             HOSTNAME: '127.0.0.1',
             NEXT_TELEMETRY_DISABLED: '1',
             APP_URL: 'http://127.0.0.1:8765',
+            GITHUB_URL: 'https://github.com/example/easycheck-runtime-test',
             API_KEY: 'synthetic-test-api-key-at-least-32-characters',
             DRIVEHUB_APP_USERNAME: 'synthetic-app-user',
             DRIVEHUB_APP_PASSWORD: 'synthetic-app-password',

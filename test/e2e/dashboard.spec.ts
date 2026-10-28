@@ -1,5 +1,17 @@
 import { expect, test, type Page } from '@playwright/test';
 
+test('GitHub footer uses the runtime URL before and after sign-in', async ({ page }) => {
+    await page.goto('/');
+    const link = page.locator('footer').getByRole('link', { name: 'GitHub', exact: true });
+    await expect(link).toHaveAttribute('href', 'https://github.com/example/easycheck-runtime-test');
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    await signIn(page);
+    await expect(page.getByRole('heading', { name: 'ABC1234' })).toBeVisible();
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('href', 'https://github.com/example/easycheck-runtime-test');
+});
+
 async function signIn(page: Page): Promise<void> {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Welcome to EasyCheck' })).toBeVisible();

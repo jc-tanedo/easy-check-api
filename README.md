@@ -15,11 +15,12 @@ Axios and Lodash are retained.
 app/                    Next.js routes, dashboard components, and React hooks
 lib/client/             Browser API error helpers
 lib/shared/             Runtime-neutral formatting helpers
-lib/server/             Configuration, crypto, sessions, handlers, and HTTP responses
+lib/server/             Configuration, crypto, stores, sessions, handlers, and HTTP responses
 lib/server/drivehub/    DriveHub service, transport, expiry, and response validation
 types/                  Shared domain contracts
 test/                   ESM unit tests and typed fixtures
 test/e2e/               Playwright specs and synthetic DriveHub preload
+test/integration/       Real Redis multi-instance and lifecycle tests
 scripts/                Plain-Node development, startup, and packaging tools
 docs/                   Quality baseline and verification history
 ```
@@ -63,6 +64,13 @@ DRIVEHUB_APP_PASSWORD=...
 DRIVEHUB_CLIENT_ID=...
 ```
 
+The footer’s GitHub link is configured with `GITHUB_URL` (defaults to
+`https://github.com/jc-tanedo/easy-check-api`). Set it to another HTTPS URL,
+or set `GITHUB_URL=` to hide it. Invalid URLs are hidden. This is runtime
+configuration: restart the Node process after changing `.env`, or run
+`docker compose up -d --force-recreate easycheck` to refresh the container’s
+environment; no image rebuild is required.
+
 Do not prefix secrets with `NEXT_PUBLIC_`. Both `.env` and the app client file are
 ignored by Git, excluded from Docker build contexts, and excluded from standalone
 file tracing.
@@ -74,6 +82,63 @@ npm run dev
 Open `http://localhost:7777` when using the example `.env`. Next.js defaults to
 port 3000 if `PORT` is unset. Sign in with your personal DriveHub email/password.
 No API key needs to be entered in the browser.
+
+## Docker Compose
+
+Create `.env` from `.env.example` (if needed), set `API_KEY`, and provide the
+DriveHub app client credentials in `.drivehub-client.json`. Set a separate,
+stable `SESSION_ENCRYPTION_KEY` in `.env` before starting Compose:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+Copy the generated 64-character hex value to `SESSION_ENCRYPTION_KEY`. Keep it
+secret and backed up; every app replica must use the same key. Losing or
+changing it makes existing sessions unreadable. Do not regenerate it on deploy.
+To use a different
+credential file, set `DRIVEHUB_CLIENT_CONFIG` in `.env` to its host path. Compose
+mounts that file read-only at `/run/secrets/drivehub-client.json`; it must be
+readable by the container's `node` user. Local Compose secrets use file mounts,
+not an encrypted secret store. Never commit the credential file.
+
+```bash
+docker compose up -d --build
+docker compose logs -f easycheck
+docker compose down
+```
+
+Open `http://localhost:7777` (or the host `PORT` configured in `.env`). The
+container always listens on port 7777. Ports bind to `127.0.0.1` by default for
+use with a host reverse proxy. To expose it directly, set
+`DOCKER_BIND_HOST=0.0.0.0` in `.env`; use HTTPS through a reverse proxy for remote
+production access and set `APP_URL` to the public origin. A proxy in another
+container should connect over a shared Docker network to `easycheck:7777`.
+`BIND_HOST` applies to the plain-Node launcher, not this container.
+
+The supplied Compose file requires a credential file. For environment-only app
+credentials, remove the service's `secrets` entry, the top-level `secrets` block,
+and the `DRIVEHUB_CLIENT_CONFIG` environment entry, then set
+`DRIVEHUB_APP_USERNAME`, `DRIVEHUB_APP_PASSWORD`, and `DRIVEHUB_CLIENT_ID` in `.env`.
+No personal DriveHub credentials are needed in `.env` for browser sign-in.
+Compose includes a private Redis 7.4 service for browser sessions, login limits,
+balance-link ownership/revocation, five-minute snapshots, and refresh leases.
+Redis is not published to the host and lives on an internal backend network;
+only the app also has outbound network access for DriveHub. The default stack
+is suitable for a trusted single host; for external Redis use authentication,
+TLS (`rediss://`), and network restrictions. Do not expose Redis publicly.
+
+The `redis-data` named volume and AOF persistence preserve state across normal
+app/Redis restarts. `docker compose down` preserves that volume;
+`docker compose down -v` **destroys it**, invalidating sessions and balance URLs.
+AOF uses `appendfsync everysec`, so abrupt host failure can lose approximately a
+second of writes, including recent revocations. Back up the volume and protect
+it as sensitive data. Redis has a 256 MiB limit and `noeviction`: memory pressure
+returns errors instead of silently evicting sessions or revocation state. Allow
+additional host memory for Redis persistence overhead and the app. This is a
+single Redis server, not a high-availability or Redis Cluster deployment.
+Existing memory-only sessions and links are not imported; users must sign in
+again and regenerate links once when switching to Redis.
 
 ## Production on Node.js
 
@@ -119,12 +184,15 @@ needed for the frontend.
 - Browser sessions use a random HTTP-only, SameSite=Strict cookie. HTTPS origins
   get Secure cookies. Neither the machine API key nor the DriveHub user token is
   returned to frontend code.
-- Submitted personal credentials are encrypted in process memory using an
-  ephemeral key, so the service can log in again after a DriveHub token expires.
-  They are never written to disk or logged by the application.
-- Browser sessions last at most 24 hours. Signing out deletes the local session;
-  it does not revoke the upstream DriveHub token. Process restarts lose all
-  sessions and require signing in again.
+- Submitted personal credentials are encrypted with AES-256-GCM so the service
+  can log in again after a DriveHub token expires. With Redis, only ciphertext is
+  stored and persisted, using the shared `SESSION_ENCRYPTION_KEY`; plaintext
+  credentials are never logged or persisted. Without Redis, credentials stay
+  encrypted in process memory using an ephemeral key.
+- Browser sessions last at most 24 hours, without sliding expiration. Signing
+  out deletes the session and invalidates its balance URL; it does not revoke
+  the upstream DriveHub token. With Redis and a stable encryption key, app
+  restarts retain sessions. Memory-only mode loses them on restart.
 - User tokens are reused until 30 seconds before the returned absolute `exp_at`.
   A date such as `2026-10-28 14:53:22` is interpreted as Philippine time, UTC+08:00.
   `DRIVEHUB_EXPIRY_UTC_OFFSET` overrides this assumption. Explicit offsets from
@@ -139,9 +207,21 @@ needed for the frontend.
   use a separate five-minute cache.
   The displayed total covers the accounts on the current page.
 
-This implementation targets one long-running Node process or Docker container.
-Session and token caches are in memory, with bounded sizes. Multiple replicas or
-serverless deployment would need a shared session/cache store before use.
+Set `REDIS_URL` and `SESSION_ENCRYPTION_KEY` to use shared storage in plain-Node
+or standalone deployments. Without `REDIS_URL`, the app deliberately retains
+single-process memory stores; this mode is not suitable for multiple replicas.
+When Redis is configured, failures return sanitized 503 responses rather than
+falling back to local state. The existing global caps of 1,000 sessions and
+5,000 active login-limit identities remain enforced atomically.
+
+Redis permits multiple app instances to share browser state. Balance-link
+refreshes use owner-checked, renewable leases; stale workers cannot republish
+after revocation, logout, or lease loss. Waiting requests time out with 503 if a
+refresh stays busy. The upstream app/user token caches remain process-local,
+so replicas may independently authenticate to DriveHub. No fully distributed
+upstream-token coordination or serverless support is claimed. To scale the
+Compose app, use a shared reverse proxy/network instead of a fixed host-port
+binding for every replica.
 
 ## Transaction history
 
@@ -171,7 +251,7 @@ cannot be used as a browser session or to read transaction history.
   collision check. A URL belongs to the login session that generated it. Repeated generation in
   that session returns the same URL. Other sessions get different URLs.
 - It returns all pages of primary and other linked accounts under `accounts`.
-- A successful snapshot is cached in server memory for five minutes. Requests
+- A successful snapshot is cached in Redis (or process memory when Redis is not configured) for five minutes. Requests
   during that window share it, and concurrent refreshes share one upstream fetch.
   Query-string cache-busting does not bypass this cache.
 - JSON includes `fetchedAt`, `cacheExpiresAt`, and `cached` so consumers can tell
@@ -263,6 +343,20 @@ To use an existing Chromium installation:
 ```bash
 CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e
 ```
+
+Redis integration tests require a disposable standalone Redis instance. They use
+unique key namespaces and clean up only their own keys:
+
+```bash
+docker run --rm -d --name easycheck-redis-tests -p 127.0.0.1:16379:6379 redis:7.4-alpine
+REDIS_TEST_URL=redis://127.0.0.1:16379 npm run test:redis
+docker stop easycheck-redis-tests
+```
+
+To exercise browser tests with Redis instead of memory stores, set `REDIS_URL`
+to a disposable test Redis instance and provide a test-only 64-hex-character
+`SESSION_ENCRYPTION_KEY` when running `npm run test:e2e`. Never point browser tests
+at production Redis: they use the application's standard key namespace.
 
 Unit/integration tests cover signing, absolute expiry, renewal, pagination,
 cookie sessions, encrypted credential storage, CSRF, rate limits, and sanitized

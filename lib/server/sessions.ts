@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto';
 import type { Credentials, TokenMetadata } from '../../types/domain';
+import type { SessionRepository, LoginLimitRepository } from './stores';
 import { DriveHubError } from './drivehub/transport';
 
 export const SESSION_SECONDS = 24 * 60 * 60;
@@ -17,7 +18,13 @@ interface SessionEntry {
     until: number;
 }
 
-export class SessionStore {
+// Structural branding survives Node's mixed ESM/TypeScript loaders.
+export function isMemorySessionStore(store: SessionRepository): store is SessionStore {
+    return 'backend' in store && store.backend === 'memory';
+}
+
+export class SessionStore implements SessionRepository {
+    readonly backend = 'memory';
     private readonly now: () => number;
     private readonly key = randomBytes(32);
     readonly sessions = new Map<string, SessionEntry>();
@@ -79,7 +86,7 @@ interface AttemptEntry {
     until: number;
 }
 
-export class LoginLimiter {
+export class LoginLimiter implements LoginLimitRepository {
     private readonly now: () => number;
     private readonly key = randomBytes(32);
     readonly attempts = new Map<string, AttemptEntry>();

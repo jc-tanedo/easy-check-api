@@ -11,6 +11,8 @@ export interface AppConfig {
     appPassword: string;
     clientId: string;
     expiryUtcOffset: string;
+    redisUrl?: string;
+    sessionEncryptionKey?: string;
 }
 
 interface ClientCredentials {
@@ -44,6 +46,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
         client = parsed;
     }
     return {
+        redisUrl: env.REDIS_URL || undefined,
+        sessionEncryptionKey: env.SESSION_ENCRYPTION_KEY || undefined,
         port: Number(env.PORT || 7777),
         apiKey: env.API_KEY || '',
         appUrl: env.APP_URL || '',
@@ -58,6 +62,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 }
 
 export function validateConfig(config: AppConfig): void {
+    if (config.redisUrl) {
+        try {
+            const url = new URL(config.redisUrl);
+            if (!['redis:', 'rediss:'].includes(url.protocol)) throw new Error();
+        } catch {
+            // URL parser errors can include the original URL and its password.
+            throw new Error('REDIS_URL must be a valid redis:// or rediss:// URL');
+        }
+        if (!/^[a-f\d]{64}$/i.test(config.sessionEncryptionKey || '')) {
+            throw new Error('SESSION_ENCRYPTION_KEY must be 64 hexadecimal characters when REDIS_URL is set');
+        }
+    }
     for (const name of ['apiKey', 'appUsername', 'appPassword', 'clientId'] as const) {
         if (!config[name]) throw new Error(`Missing required configuration: ${name}`);
     }

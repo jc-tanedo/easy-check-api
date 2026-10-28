@@ -3,6 +3,7 @@ import type { AccountRecord, AccountType, TokenMetadata } from '../../types/doma
 import { DriveHubError, isDriveHubError } from './drivehub/transport';
 import type { createService } from './drivehub/service';
 import type { ActiveSession, SessionStore } from './sessions';
+import type { BalanceLinkRepository } from './stores';
 
 export const CACHE_SECONDS = 5 * 60;
 
@@ -23,7 +24,7 @@ interface LinkEntry {
     failure?: { until: number } | null;
 }
 
-export class BalanceLinks {
+export class BalanceLinks implements BalanceLinkRepository {
     private readonly sessions: SessionStore;
     private readonly service: Service;
     private readonly now: () => number;

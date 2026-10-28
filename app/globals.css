@@ -813,6 +813,15 @@ label {
     align-items: center;
     gap: 9px;
 }
+.footer a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.footer a:hover,
+.footer a:focus-visible {
+    color: var(--green);
+}
 .footer-dot {
     margin: 0 6px;
 }

@@ -1,5 +1,36 @@
 # Code quality and migration baseline
 
+## Redis storage follow-up
+
+After the original migration plan was completed, sessions, login limits,
+balance-link ownership/revocation, snapshots, and refresh leases gained Redis
+implementations behind typed asynchronous-compatible repository contracts.
+Compose runs the app and a private Redis 7.4 server with AOF persistence, a
+named volume, health checks, and `noeviction`. Shared AES-256-GCM credentials
+require a separate stable 32-byte encryption key; Redis outages fail closed
+with sanitized 503 responses. Memory mode remains available when `REDIS_URL`
+is absent, but configured Redis never silently falls back to it.
+
+Verification for this follow-up:
+
+- Strict type-check, lint, formatting, production build, dependency audit (zero
+  production vulnerabilities), and diff checks pass.
+- **61 unit tests** and **15 real-Redis integration tests** pass.
+- **16 browser tests** pass in both memory mode and Redis mode.
+- Node 22.9 Docker type-check, lint, all 61 unit tests, all 15 Redis integration
+  tests, and production build pass. The checks exposed and fixed a class-identity
+  issue across Node loaders by using structural memory-store branding.
+- The actual Node 24 Compose stack was built and smoke-tested with synthetic
+  encrypted session/link data: app and Redis restarts preserve the session and
+  cached link, logout invalidates both, Redis downtime returns 503, and the app
+  recovers when Redis returns. The test stack and its disposable volume were
+  removed afterward. No live DriveHub credentials/API calls were used.
+
+Limits remain explicit: upstream token caches are process-local, Redis Cluster
+and high availability are not implemented, and AOF `everysec` may lose recent
+writes after an abrupt host failure. Existing memory sessions are not imported.
+See README for setup, persistence, key management, and test commands.
+
 ## Status and scope
 
 **Plan status: completed.** All 18 steps and the subsequent review findings and

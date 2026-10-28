@@ -6,8 +6,9 @@ import { DriveHubError, isDriveHubError } from './drivehub/transport';
 import type { createService } from './drivehub/service';
 import { json, readJson, errorResponse } from './responses';
 import { balanceOptions, credentials, queryOptions } from './balance-input';
-import { SessionStore, LoginLimiter, SESSION_SECONDS } from './sessions';
+import { SessionStore, LoginLimiter, SESSION_SECONDS, isMemorySessionStore } from './sessions';
 import { BalanceLinks } from './balance-links';
+import type { SessionRepository, LoginLimitRepository, BalanceLinkRepository } from './stores';
 
 const COOKIE_NAME = 'easycheck_session';
 type Service = ReturnType<typeof createService>;
@@ -23,8 +24,9 @@ export interface HandlerSet {
 
 interface HandlerOptions {
     now?: () => number;
-    sessions?: SessionStore;
-    limiter?: LoginLimiter;
+    sessions?: SessionRepository;
+    limiter?: LoginLimitRepository;
+    links?: BalanceLinkRepository;
 }
 
 function errorStatus(error: unknown): number | undefined {
@@ -34,9 +36,15 @@ function errorStatus(error: unknown): number | undefined {
 export function createHandlers(
     config: AppConfig,
     service: Service,
-    { now = Date.now, sessions = new SessionStore({ now }), limiter = new LoginLimiter({ now }) }: HandlerOptions = {},
+    {
+        now = Date.now,
+        sessions = new SessionStore({ now }),
+        limiter = new LoginLimiter({ now }),
+        links = isMemorySessionStore(sessions) ? new BalanceLinks(sessions, service, { now }) : undefined,
+    }: HandlerOptions = {},
 ): HandlerSet {
-    const links = new BalanceLinks(sessions, service, { now });
+    if (!links) throw new Error('A balance-link repository is required with a custom session repository');
+    const balanceLinks = links;
     const origin = (request: Request): string => {
         if (config.appUrl) return new URL(config.appUrl).origin;
         const url = new URL(request.url);
@@ -60,21 +68,22 @@ export function createHandlers(
         }
     };
 
-    function deleteSession(id: string | undefined): void {
-        links.revoke(id);
-        sessions.delete(id);
+    async function deleteSession(id: string | undefined): Promise<void> {
+        await sessions.delete(id);
+        await balanceLinks.revoke(id);
     }
 
     async function balanceLink(request: Request): Promise<Response> {
         try {
             const id = sessionId(request);
-            if (!sessions.get(id)) throw new DriveHubError('Sign in to manage your balance URL', 401, 'application');
+            if (!(await sessions.get(id)))
+                throw new DriveHubError('Sign in to manage your balance URL', 401, 'application');
             if (request.method !== 'GET') sameOrigin(request);
             if (request.method === 'DELETE') {
-                links.revoke(id);
+                await balanceLinks.revoke(id);
                 return json({ revoked: true });
             }
-            const link = links.get(id, request.method === 'POST');
+            const link = await balanceLinks.get(id, request.method === 'POST');
             return json(
                 link
                     ? {
@@ -92,7 +101,7 @@ export function createHandlers(
     async function publicBalance(request: Request, token: string): Promise<Response> {
         try {
             if (!/^[A-Za-z0-9_-]{12}$/.test(token)) throw new DriveHubError('Balance URL not found', 404);
-            return json(await links.fetch(token));
+            return json(await balanceLinks.fetch(token));
         } catch (error: unknown) {
             const headers: Record<string, string> =
                 isDriveHubError(error) && error.retryAfter ? { 'Retry-After': String(error.retryAfter) } : {};
@@ -104,7 +113,7 @@ export function createHandlers(
         try {
             const id = sessionId(request);
             if (request.method === 'GET') {
-                const active = sessions.get(id);
+                const active = await sessions.get(id);
                 if (!active) throw new DriveHubError('Sign in to view your accounts', 401, 'application');
                 return json({
                     email: active.credentials.email,
@@ -115,16 +124,16 @@ export function createHandlers(
             }
             sameOrigin(request);
             if (request.method === 'DELETE') {
-                deleteSession(id);
+                await deleteSession(id);
                 return json({ signedOut: true }, 200, { 'Set-Cookie': sessionCookie(request, '', true) });
             }
             if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
             const login = credentials(await readJson(request));
-            limiter.check(login.email);
+            await limiter.check(login.email);
             const metadata = await service.authenticate(login);
-            limiter.clear(login.email);
-            deleteSession(id);
-            const newId = sessions.create(login, metadata);
+            await limiter.clear(login.email);
+            await deleteSession(id);
+            const newId = await sessions.create(login, metadata);
             return json({ email: login.email, ...metadata }, 201, { 'Set-Cookie': sessionCookie(request, newId) });
         } catch (error: unknown) {
             return errorResponse(error);
@@ -137,14 +146,21 @@ export function createHandlers(
     ): Promise<Response> {
         const id = sessionId(request);
         try {
-            const active = sessions.get(id);
+            const active = await sessions.get(id);
             if (!active) throw new DriveHubError('Your session has ended. Please sign in again.', 401, 'application');
             const result = await operation(active.credentials);
-            sessions.update(id, { tokenExpiresAt: result.tokenExpiresAt, tokenExpiresAtUtc: result.tokenExpiresAtUtc });
+            await sessions.update(id, {
+                tokenExpiresAt: result.tokenExpiresAt,
+                tokenExpiresAtUtc: result.tokenExpiresAtUtc,
+            });
             return json(result);
         } catch (error: unknown) {
             if (errorStatus(error) === 401) {
-                deleteSession(id);
+                try {
+                    await deleteSession(id);
+                } catch (storageError: unknown) {
+                    return errorResponse(storageError);
+                }
                 return errorResponse(error, { 'Set-Cookie': sessionCookie(request, '', true) });
             }
             return errorResponse(error);
