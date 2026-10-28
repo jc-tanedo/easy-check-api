@@ -1,14 +1,23 @@
-FROM node:12
-
-# Create app directory
-WORKDIR /usr/src/app
-# Install app dependencies
+FROM node:24-alpine AS dependencies
+WORKDIR /app
 COPY package*.json ./
+RUN npm ci
 
-RUN npm install
-# Copy app source code
+FROM node:24-alpine AS builder
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
+RUN npm run build
 
-#Expose port and start application
+FROM node:24-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=7777
+ENV HOSTNAME=0.0.0.0
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+USER node
 EXPOSE 7777
-CMD [ "npm", "start" ]
+CMD ["node", "server.js"]
