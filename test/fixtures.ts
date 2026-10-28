@@ -11,6 +11,7 @@ export const config: AppConfig = {
     appUsername: 'app-user',
     appPassword: 'app-pass',
     clientId: 'app-id',
+    drivehubBaseUrl: 'https://upstream.example.test/',
     expiryUtcOffset: '+08:00',
 };
 export type Service = ReturnType<typeof createService>;

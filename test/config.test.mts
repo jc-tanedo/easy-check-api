@@ -6,6 +6,25 @@ import * as path from 'node:path';
 import { loadConfig, validateConfig } from '../lib/server/config.ts';
 import { config } from './fixtures';
 
+test('DriveHub base URL is required, validated, and never included in configuration errors', () => {
+    assert.equal(loadConfig({ NODE_ENV: 'test' }).drivehubBaseUrl, '');
+    const url = 'https://upstream.example.test/';
+    assert.equal(loadConfig({ NODE_ENV: 'test', DRIVEHUB_BASE_URL: url }).drivehubBaseUrl, url);
+    assert.doesNotThrow(() => validateConfig({ ...config, drivehubBaseUrl: url }));
+    for (const value of [
+        '',
+        'not a URL',
+        'http://upstream.example.test/',
+        'https://user:secret@upstream.example.test/',
+        `${url}?secret=value`,
+        `${url}#fragment`,
+    ]) {
+        assert.throws(() => validateConfig({ ...config, drivehubBaseUrl: value }), {
+            message: 'DRIVEHUB_BASE_URL must be an HTTPS URL without credentials, query, or fragment',
+        });
+    }
+});
+
 test('Redis requires a valid URL and a separate stable 32-byte encryption key', () => {
     assert.throws(() => validateConfig({ ...config, redisUrl: 'redis://localhost:6379' }), /SESSION_ENCRYPTION_KEY/);
     assert.throws(
@@ -45,6 +64,7 @@ test('DriveHub application credentials come only from environment variables', (t
         DRIVEHUB_APP_USERNAME: 'env-user',
         DRIVEHUB_APP_PASSWORD: 'env-pass',
         DRIVEHUB_CLIENT_ID: 'env-client',
+        DRIVEHUB_BASE_URL: 'https://upstream.example.test/',
     });
     assert.equal(loaded.appUsername, 'env-user');
     assert.equal(loaded.appPassword, 'env-pass');

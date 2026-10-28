@@ -16,7 +16,7 @@ async function transport(t: TestContext, handler: http.RequestListener) {
     const address = server.address();
     assert.ok(address && typeof address !== 'string');
     return (options: UpstreamRequest) =>
-        request(options, {
+        request(options, 'https://upstream.example.test/', {
             request: (requestOptions) => {
                 const url = new URL(requestOptions.url ?? '');
                 url.protocol = 'http:';
@@ -25,6 +25,17 @@ async function transport(t: TestContext, handler: http.RequestListener) {
             },
         });
 }
+
+test('transport resolves requests against the configured upstream URL', async () => {
+    let capturedUrl: string | undefined;
+    const client = axios.create();
+    client.defaults.adapter = async (options) => {
+        capturedUrl = options.url;
+        return { data: { data: { ok: true } }, status: 200, statusText: 'OK', headers: {}, config: options };
+    };
+    await request({ path: 'auth', headers: {}, query: { page: '2' } }, 'https://configured.example.test/api/', client);
+    assert.equal(capturedUrl, 'https://configured.example.test/api/auth?page=2');
+});
 
 test('Axios form-encodes credentials without losing special characters', async (t) => {
     let captured:
@@ -139,18 +150,15 @@ test('Axios enforces the response-size limit', async (t) => {
 
 test('transport strips Axios request details from network and timeout errors', async () => {
     await assert.rejects(
-        request(
-            { path: 'auth', headers: {} },
-            {
-                request: async () => {
-                    const error = Object.assign(new Error('password=do-not-leak'), {
-                        code: 'ECONNABORTED',
-                        config: { headers: { Authorization: 'do-not-leak' } },
-                    });
-                    throw error;
-                },
+        request({ path: 'auth', headers: {} }, 'https://upstream.example.test/', {
+            request: async () => {
+                const error = Object.assign(new Error('password=do-not-leak'), {
+                    code: 'ECONNABORTED',
+                    config: { headers: { Authorization: 'do-not-leak' } },
+                });
+                throw error;
             },
-        ),
+        }),
         (error: unknown) =>
             isDriveHubError(error) &&
             error.status === 502 &&

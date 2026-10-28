@@ -83,7 +83,10 @@ function accountRecord(record: JsonRecord): AccountRecord {
     return normalizeRecord(record) as AccountRecord;
 }
 
-export function createService(config: AppConfig, { request = httpRequest, now = Date.now }: ServiceOptions = {}) {
+export function createService(
+    config: AppConfig,
+    { request = (options) => httpRequest(options, config.drivehubBaseUrl), now = Date.now }: ServiceOptions = {},
+) {
     let appAuth: AppAuth | null = null;
     let appAuthPending: Promise<AppAuth> | null = null;
     const users = new Map<string, UserAuth>();

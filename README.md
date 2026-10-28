@@ -50,11 +50,12 @@ examples provide the starting point.
 
 ### 2. Add your credentials
 
-Edit `.env` and fill in these five values:
+Edit `.env` and fill in these six values:
 
 ```dotenv
 API_KEY=<random-secret-at-least-32-characters>
 SESSION_ENCRYPTION_KEY=<separate-64-character-hex-secret>
+DRIVEHUB_BASE_URL=<upstream-https-base-url>
 DRIVEHUB_APP_USERNAME=<application-username>
 DRIVEHUB_APP_PASSWORD=<application-password>
 DRIVEHUB_CLIENT_ID=<application-client-id>
@@ -116,6 +117,7 @@ No credential JSON file or secret-file mount is needed.
 | Variable                 | Purpose                                                                                    |
 | ------------------------ | ------------------------------------------------------------------------------------------ |
 | `API_KEY`                | Authenticates external API consumers; at least 32 characters. Never sent to the dashboard. |
+| `DRIVEHUB_BASE_URL`      | Required upstream HTTPS base URL, supplied by your deployment; no built-in default.        |
 | `DRIVEHUB_APP_USERNAME`  | DriveHub application username, not your personal email.                                    |
 | `DRIVEHUB_APP_PASSWORD`  | DriveHub application password.                                                             |
 | `DRIVEHUB_CLIENT_ID`     | DriveHub application client identifier.                                                    |

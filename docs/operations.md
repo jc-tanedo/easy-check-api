@@ -4,6 +4,11 @@
 
 ## Environment-only configuration
 
+Set `DRIVEHUB_BASE_URL` to the upstream HTTPS base URL in your environment.
+There is no hardcoded default. Credentials, query strings, and fragments are
+not allowed in this URL. Keep the deployment-specific address in your ignored
+`.env`, not in source code or the Compose example.
+
 DriveHub application credentials come exclusively from `DRIVEHUB_APP_USERNAME`,
 `DRIVEHUB_APP_PASSWORD`, and `DRIVEHUB_CLIENT_ID`. The old credential JSON file
 and `DRIVEHUB_CLIENT_CONFIG` are no longer used. Personal credentials are entered

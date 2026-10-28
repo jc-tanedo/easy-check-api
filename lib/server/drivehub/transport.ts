@@ -37,9 +37,10 @@ const REQUEST_TIMEOUT_MS = 30_000;
 
 export async function request<T = unknown>(
     { path, headers, fields, query }: UpstreamRequest,
+    baseUrl: string,
     client: Pick<AxiosInstance, 'request'> = axios,
 ): Promise<T> {
-    const url = new URL(path, 'https://upstream.example.test/');
+    const url = new URL(path, baseUrl);
     if (query) url.search = new URLSearchParams(query).toString();
     const body = fields ? new URLSearchParams(fields).toString() : undefined;
     const requestHeaders: Record<string, string> = { Accept: 'application/json', ...headers };

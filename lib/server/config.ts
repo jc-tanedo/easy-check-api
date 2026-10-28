@@ -7,6 +7,7 @@ export interface AppConfig {
     appUsername: string;
     appPassword: string;
     clientId: string;
+    drivehubBaseUrl: string;
     expiryUtcOffset: string;
     redisUrl?: string;
     sessionEncryptionKey?: string;
@@ -24,12 +25,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
         appUsername: env.DRIVEHUB_APP_USERNAME || '',
         appPassword: env.DRIVEHUB_APP_PASSWORD || '',
         clientId: env.DRIVEHUB_CLIENT_ID || '',
+        drivehubBaseUrl: env.DRIVEHUB_BASE_URL || '',
         // DriveHub's timezone-less exp_at values are treated as Philippine time.
         expiryUtcOffset: env.DRIVEHUB_EXPIRY_UTC_OFFSET || '+08:00',
     };
 }
 
 export function validateConfig(config: AppConfig): void {
+    try {
+        const url = new URL(config.drivehubBaseUrl);
+        if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error();
+    } catch {
+        throw new Error('DRIVEHUB_BASE_URL must be an HTTPS URL without credentials, query, or fragment');
+    }
     if (config.redisUrl) {
         try {
             const url = new URL(config.redisUrl);

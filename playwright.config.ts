@@ -26,6 +26,7 @@ export default defineConfig({
             DRIVEHUB_APP_USERNAME: 'synthetic-app-user',
             DRIVEHUB_APP_PASSWORD: 'synthetic-app-password',
             DRIVEHUB_CLIENT_ID: 'synthetic-app-client',
+            DRIVEHUB_BASE_URL: 'https://upstream.example.test/',
             DRIVEHUB_EMAIL: 'driver@example.com',
             DRIVEHUB_PASSWORD: 'test-password',
         },
